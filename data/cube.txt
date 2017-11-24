@@ -1,0 +1,2 @@
+Synthetic cube dataset
+32 x 32 x 32
