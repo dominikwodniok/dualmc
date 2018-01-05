@@ -12,21 +12,21 @@ template<class T> inline
 int DualMC<T>::getCellCode(int32_t const cx, int32_t const cy, int32_t const cz, VolumeDataType const iso) const {
     // determine for each cube corner if it is outside or inside
     int code = 0;
-    if(data[gA(cx,cy,cz)] <= iso)
+    if(data[gA(cx,cy,cz)] >= iso)
         code |= 1;
-    if(data[gA(cx+1,cy,cz)] <= iso)
+    if(data[gA(cx+1,cy,cz)] >= iso)
         code |= 2;
-    if(data[gA(cx+1,cy,cz+1)] <= iso)
+    if(data[gA(cx+1,cy,cz+1)] >= iso)
         code |= 4;
-    if(data[gA(cx,cy,cz+1)] <= iso)
+    if(data[gA(cx,cy,cz+1)] >= iso)
         code |= 8;
-    if(data[gA(cx,cy+1,cz)] <= iso)
+    if(data[gA(cx,cy+1,cz)] >= iso)
         code |= 16;
-    if(data[gA(cx+1,cy+1,cz)] <= iso)
+    if(data[gA(cx+1,cy+1,cz)] >= iso)
         code |= 32;
-    if(data[gA(cx+1,cy+1,cz+1)] <= iso)
+    if(data[gA(cx+1,cy+1,cz+1)] >= iso)
         code |= 64;
-    if(data[gA(cx,cy+1,cz+1)] <= iso)
+    if(data[gA(cx,cy+1,cz+1)] >= iso)
         code |= 128;
     return code;
 }
@@ -230,8 +230,8 @@ void DualMC<T>::buildQuadSoup(
                 // construct quad for x edge
                 if(z > 0 && y > 0) {
                     // is edge intersected?
-                    bool const entering = data[gA(x,y,z)] <= iso && data[gA(x+1,y,z)] > iso;
-                    bool const exiting  = data[gA(x,y,z)] > iso && data[gA(x+1,y,z)] <= iso;
+                    bool const entering = data[gA(x,y,z)] < iso && data[gA(x+1,y,z)] >= iso;
+                    bool const exiting  = data[gA(x,y,z)] >= iso && data[gA(x+1,y,z)] < iso;
                     if(entering || exiting){
                         // generate quad
                         pointCode = getDualPointCode(x,y,z,iso,EDGE0);
@@ -263,8 +263,8 @@ void DualMC<T>::buildQuadSoup(
                 // construct quad for y edge
                 if(z > 0 && x > 0) {
                     // is edge intersected?
-                    bool const entering = data[gA(x,y,z)] <= iso && data[gA(x,y+1,z)] > iso;
-                    bool const exiting  = data[gA(x,y,z)] > iso && data[gA(x,y+1,z)] <= iso;
+                    bool const entering = data[gA(x,y,z)] < iso && data[gA(x,y+1,z)] >= iso;
+                    bool const exiting  = data[gA(x,y,z)] >= iso && data[gA(x,y+1,z)] < iso;
                     if(entering || exiting){
                         // generate quad
                         pointCode = getDualPointCode(x,y,z,iso,EDGE8);
@@ -296,8 +296,8 @@ void DualMC<T>::buildQuadSoup(
                 // construct quad for z edge
                 if(x > 0 && y > 0) {
                     // is edge intersected?
-                    bool const entering = data[gA(x,y,z)] <= iso && data[gA(x,y,z+1)] > iso;
-                    bool const exiting  = data[gA(x,y,z)] > iso && data[gA(x,y,z+1)] <= iso;
+                    bool const entering = data[gA(x,y,z)] < iso && data[gA(x,y,z+1)] >= iso;
+                    bool const exiting  = data[gA(x,y,z)] >= iso && data[gA(x,y,z+1)] < iso;
                     if(entering || exiting){
                         // generate quad
                         pointCode = getDualPointCode(x,y,z,iso,EDGE3);
@@ -359,8 +359,8 @@ void DualMC<T>::buildSharedVerticesQuads(
             for(int32_t x = 0; x < reducedX; ++x) {
                 // construct quads for x edge
                 if(z > 0 && y > 0) {
-                    bool const entering = data[gA(x,y,z)] <= iso && data[gA(x+1,y,z)] > iso;
-                    bool const exiting  = data[gA(x,y,z)] > iso && data[gA(x+1,y,z)] <= iso;
+                    bool const entering = data[gA(x,y,z)] < iso && data[gA(x+1,y,z)] >= iso;
+                    bool const exiting  = data[gA(x,y,z)] >= iso && data[gA(x+1,y,z)] < iso;
                     if(entering || exiting){
                         // generate quad
                         i0 = getSharedDualPointIndex(x,y,z,iso,EDGE0,vertices);
@@ -378,8 +378,8 @@ void DualMC<T>::buildSharedVerticesQuads(
                 
                 // construct quads for y edge
                 if(z > 0 && x > 0) {
-                    bool const entering = data[gA(x,y,z)] <= iso && data[gA(x,y+1,z)] > iso;
-                    bool const exiting  = data[gA(x,y,z)] > iso && data[gA(x,y+1,z)] <= iso;
+                    bool const entering = data[gA(x,y,z)] < iso && data[gA(x,y+1,z)] >= iso;
+                    bool const exiting  = data[gA(x,y,z)] >= iso && data[gA(x,y+1,z)] < iso;
                     if(entering || exiting){
                         // generate quad
                         i0 = getSharedDualPointIndex(x,y,z,iso,EDGE8,vertices);
@@ -397,8 +397,8 @@ void DualMC<T>::buildSharedVerticesQuads(
 
                 // construct quads for z edge
                 if(x > 0 && y > 0) {
-                    bool const entering = data[gA(x,y,z)] <= iso && data[gA(x,y,z+1)] > iso;
-                    bool const exiting  = data[gA(x,y,z)] > iso && data[gA(x,y,z+1)] <= iso;
+                    bool const entering = data[gA(x,y,z)] < iso && data[gA(x,y,z+1)] >= iso;
+                    bool const exiting  = data[gA(x,y,z)] >= iso && data[gA(x,y,z+1)] < iso;
                     if(entering || exiting){
                         // generate quad
                         i0 = getSharedDualPointIndex(x,y,z,iso,EDGE3,vertices);                        
