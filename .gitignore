@@ -1,4 +1,6 @@
 dmc
 dmc.exe
+gentable
+gentable.exe
 bin/
 *.obj

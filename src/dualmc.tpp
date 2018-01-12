@@ -16,17 +16,17 @@ int DualMC<T>::getCellCode(int32_t const cx, int32_t const cy, int32_t const cz,
         code |= 1;
     if(data[gA(cx+1,cy,cz)] >= iso)
         code |= 2;
-    if(data[gA(cx+1,cy,cz+1)] >= iso)
-        code |= 4;
-    if(data[gA(cx,cy,cz+1)] >= iso)
-        code |= 8;
     if(data[gA(cx,cy+1,cz)] >= iso)
-        code |= 16;
+        code |= 4;
     if(data[gA(cx+1,cy+1,cz)] >= iso)
+        code |= 8;
+    if(data[gA(cx,cy,cz+1)] >= iso)
+        code |= 16;
+    if(data[gA(cx+1,cy,cz+1)] >= iso)
         code |= 32;
-    if(data[gA(cx+1,cy+1,cz+1)] >= iso)
-        code |= 64;
     if(data[gA(cx,cy+1,cz+1)] >= iso)
+        code |= 64;
+    if(data[gA(cx+1,cy+1,cz+1)] >= iso)
         code |= 128;
     return code;
 }

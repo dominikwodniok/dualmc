@@ -14,7 +14,8 @@ to someone.
 # Implementation
 The algorithm is implemented in the files `dualmc.h`, `dualmc.tpp`,
 and `dualmc_table.tpp`. A simple example command-line application which demonstrates
-basic usage is provided as well.
+basic usage is provided as well. An application for generating the dual marching
+cubes table is implemented in `gentable.cpp`.
 
 Dual point computation could be improved using Hermite data or at least first
 derivatives as described in [Dual Contouring of Hermite Data](https://dl.acm.org/citation.cfm?id=566586).
