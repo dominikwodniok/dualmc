@@ -1,6 +1,7 @@
 dmc
 dmc.exe
-gentable
-gentable.exe
-bin/
+gentables
+gentables.exe
 *.obj
+*.o
+*.dep
