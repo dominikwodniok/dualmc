@@ -3,11 +3,16 @@
 // of the BSD 3-Clause license.
 // See the LICENSE.txt file for details.
 
+// std includes
 #include <array>
 #include <cassert>
 #include <fstream>
+#include <functional>
 #include <iostream>
+#include <map>
 #include <vector>
+
+#include "gentables.h"
 
 //  Coordinate system
 //
@@ -61,61 +66,10 @@
 //   o--------2----------o
 //
 
-/// Class which represents a cube corner of the unit cube [0,1]^3 as the
-/// Morton code of its coordinates. This allows to easily get the Morton codes
-/// of neighboring corners with simple XOR operations.
-class CubeCornerCode {
-public:
-    /// Constructor initializes the code. Should be a value in {0,...,7}.
-    CubeCornerCode(uint32_t c) : code(c) {}
-    
-    /// Get the raw Morton code of this corner.
-    uint32_t getCode() const { return code;}
-    
-    /// Get the mask of this corner. Corresponds to the bit at the position of
-    /// its Morton code value.
-    uint32_t getMask() const { return 1u << code;}
-    
-    /// Get the neighboring code in x direction.
-    uint32_t nX() const { return code ^ NEIGHBOR_X_MASK;}
-    
-    /// Get the neighboring code in y direction.
-    uint32_t nY() const { return code ^ NEIGHBOR_Y_MASK;}
-    
-    /// Get the neighboring code in z direction.
-    uint32_t nZ() const { return code ^ NEIGHBOR_Z_MASK;}
-    
-private:
-    /// The Morton code
-    uint32_t code;
-    
-    /// XOR mask for retrieving the neighbor in x direction
-    static uint32_t constexpr NEIGHBOR_X_MASK = 1u;
-    /// XOR mask for retrieving the neighbor in y direction
-    static uint32_t constexpr NEIGHBOR_Y_MASK = 2u;
-    /// XOR mask for retrieving the neighbor in z direction
-    static uint32_t constexpr NEIGHBOR_Z_MASK = 4u;
-};
-
-// edge codes from the DualMC class in dualmc.h
-enum class DMCEdgeCode : uint32_t {
-    EDGE0 = 1,
-    EDGE1 = 1 << 1,
-    EDGE2 = 1 << 2,
-    EDGE3 = 1 << 3,
-    EDGE4 = 1 << 4,
-    EDGE5 = 1 << 5,
-    EDGE6 = 1 << 6,
-    EDGE7 = 1 << 7,
-    EDGE8 = 1 << 8,
-    EDGE9 = 1 << 9,
-    EDGE10 = 1 << 10,
-    EDGE11 = 1 << 11
-};
 
 // for a corner id given by its Morton code this table gives the edge masks
 // of adjacent edges in x, y, and z direction.
-uint32_t cornerEdges[8][3] = {
+uint32_t const GenerateTablesApp::cornerEdges[8][3] = {
     // {x,y,z}
     {static_cast<uint32_t>(DMCEdgeCode::EDGE0),static_cast<uint32_t>(DMCEdgeCode::EDGE8),static_cast<uint32_t>(DMCEdgeCode::EDGE3)},  // corner 0
     {static_cast<uint32_t>(DMCEdgeCode::EDGE0),static_cast<uint32_t>(DMCEdgeCode::EDGE9),static_cast<uint32_t>(DMCEdgeCode::EDGE1)},  // corner 1
@@ -126,9 +80,6 @@ uint32_t cornerEdges[8][3] = {
     {static_cast<uint32_t>(DMCEdgeCode::EDGE6),static_cast<uint32_t>(DMCEdgeCode::EDGE11),static_cast<uint32_t>(DMCEdgeCode::EDGE7)}, // corner 6
     {static_cast<uint32_t>(DMCEdgeCode::EDGE6),static_cast<uint32_t>(DMCEdgeCode::EDGE10),static_cast<uint32_t>(DMCEdgeCode::EDGE5)}  // corner 7
 };
-
-// vector which will contain the table
-std::vector<uint32_t> dualPointsList;
 
 // Function for generating the dual marching cubes table. For each cube
 // configuration it uses each corner that is clssified as inside as the starting
@@ -149,7 +100,7 @@ std::vector<uint32_t> dualPointsList;
 //  0------------1
 // Luckily, the correct patches are identical to the results of the inverted
 // configurations, which are handled correctly.
-void generateDualMCTable() {
+void GenerateTablesApp::generateDualMCTable() {
     std::cout << "Generating DualMC table" << std::endl;
 
     // allocate space for the up to four dual point edge masks for all 256
@@ -252,14 +203,14 @@ void generateDualMCTable() {
 //------------------------------------------------------------------------------
 
 // function writing the dual marching cubes table file
-void writeDualMCTable() {    
+void GenerateTablesApp::writeDualMCTable() {    
     // now write the table to a file
-    char const * const filename = "generatedtable.tpp";
+    char const * const filename = "dualmctable.tpp";
     std::ofstream file(filename);
     
     std::cout << "Writting DualMC table to '" << filename << '\'' << std::endl;
     
-    file << "template<class T>\nint32_t DualMC<T>::dualPointsList[256][4] = {\n";
+    file << "template<class T>\nint32_t const DualMC<T>::dualPointsList[256][4] = {\n";
     // iterate the cube cases
     for(uint32_t cube = 0; cube < 256; ++cube) {
         uint32_t const * const codes = &dualPointsList[cube * 4];
@@ -295,9 +246,205 @@ void writeDualMCTable() {
 }
 
 //------------------------------------------------------------------------------
+// Code for auxiliary manifold dual marching cubes tables
 
-int main(int argc, char const * argv[]) {
+// corner IDs
+//    2------------3
+//   /|           /|
+//  6------------7 |
+//  | |          | |
+//  | |          | |
+//  | |          | |
+//  | 0----------|-1
+//  |/           |/
+//  4------------5
+    
+//------------------------------------------------------------------------------
+void GenerateTablesApp::CubeConfiguration::rotX() {
+    // extract corner bits and shift them to the rotated position
+    config =
+    ((config & (C0|C1)) << 2) | 
+    ((config & (C2|C3)) << 4) |
+    ((config & (C4|C5)) >> 4) |
+    ((config & (C6|C7)) >> 2);
+}
+    
+//------------------------------------------------------------------------------
+void GenerateTablesApp::CubeConfiguration::rotY() {
+    // extract corner bits and shift them to the rotated position
+    config =
+    ((config & (C0|C2)) << 4) | 
+    ((config & (C1|C3)) >> 1) |
+    ((config & (C4|C6)) << 1) |
+    ((config & (C5|C7)) >> 4);
+}
+
+//------------------------------------------------------------------------------
+void GenerateTablesApp::CubeConfiguration::rotZ() {
+    // extract corner bits and shift them to the rotated position
+    config =
+    ((config & (C0|C4)) << 1) | 
+    ((config & (C1|C5)) << 2) |
+    ((config & (C2|C6)) >> 2) |
+    ((config & (C3|C7)) >> 1);
+}
+
+//------------------------------------------------------------------------------
+GenerateTablesApp::CoordinateAxis::CoordinateAxis(Value v):value(v){}
+
+//------------------------------------------------------------------------------
+void GenerateTablesApp::CoordinateAxis::rotX() {
+    static Value rotationTable[] = {
+        Value::NX, Value::PX, Value::NZ, Value::PZ, Value::PY, Value::NY
+    };
+    value = rotationTable[static_cast<uint32_t>(value)];
+}
+
+//------------------------------------------------------------------------------
+void GenerateTablesApp::CoordinateAxis::rotY() {
+    static Value rotationTable[] = {
+        Value::PZ, Value::NZ, Value::NY, Value::PY, Value::NX, Value::PX
+    };
+    value = rotationTable[static_cast<uint32_t>(value)];
+}
+
+//------------------------------------------------------------------------------
+void GenerateTablesApp::CoordinateAxis::rotZ() {
+    static Value rotationTable[] = {
+        Value::NY, Value::PY, Value::PX, Value::NX, Value::NZ, Value::PZ
+    };
+    value = rotationTable[static_cast<uint32_t>(value)];
+}
+
+//------------------------------------------------------------------------------
+GenerateTablesApp::CoordinateAxis::Value GenerateTablesApp::CoordinateAxis::get() const {
+    return value;
+}
+
+//------------------------------------------------------------------------------
+template<class T> inline void GenerateTablesApp::registerConfigAxisRotations(T f, CubeConfiguration cubeConfiguration, CoordinateAxis const axis, ProblematicConfigsMap & problematicConfigsMap) {
+    // apply the function f to the cube configuration and store each resulting
+    // configuration and its direction to the map of prolematic configurations
+    for(int i = 0; i < 4; ++i) {
+        f(cubeConfiguration);
+        problematicConfigsMap[cubeConfiguration.get()] = static_cast<uint32_t>(axis.get());
+    }
+}
+
+//------------------------------------------------------------------------------
+void GenerateTablesApp::exploreConfigRotations(CubeConfiguration config, ProblematicConfigsMap & problematicConfigsMap) {
+    // assert that the face in positive x direction is ambiguous
+    assert(
+    (config.get() & (CubeConfiguration::C1 | CubeConfiguration::C3 | CubeConfiguration::C5 | CubeConfiguration::C7)) == (CubeConfiguration::C1 | CubeConfiguration::C7) ||
+    (config.get() & (CubeConfiguration::C1 | CubeConfiguration::C3 | CubeConfiguration::C5 | CubeConfiguration::C7)) == (CubeConfiguration::C3 | CubeConfiguration::C5)
+    );
+    
+    // set the initial ambiguous face direction to posiive x
+    CoordinateAxis ambiguousFaceDir = CoordinateAxis::Value::PX;
+    
+    using std::placeholders::_1;
+    auto rotX = std::bind(&CubeConfiguration::rotX,_1);
+    auto rotY = std::bind(&CubeConfiguration::rotY,_1);
+    auto rotZ = std::bind(&CubeConfiguration::rotZ,_1);
+    
+    // bring the ambiguous face into all possible directions and rotate around
+    // this directions to explore all configurations of the same class
+    
+    // PX case
+    registerConfigAxisRotations(rotX, config, ambiguousFaceDir, problematicConfigsMap);
+    
+    // PY case
+    ambiguousFaceDir.rotZ();
+    config.rotZ();
+    registerConfigAxisRotations(rotY, config, ambiguousFaceDir, problematicConfigsMap);
+    
+    // NX case
+    ambiguousFaceDir.rotZ();
+    config.rotZ();
+    registerConfigAxisRotations(rotX, config, ambiguousFaceDir, problematicConfigsMap);
+    
+    // NY case
+    ambiguousFaceDir.rotZ();
+    config.rotZ();
+    registerConfigAxisRotations(rotY, config, ambiguousFaceDir, problematicConfigsMap);
+    
+    // NZ case
+    ambiguousFaceDir.rotX();
+    config.rotX();
+    registerConfigAxisRotations(rotZ, config, ambiguousFaceDir, problematicConfigsMap);
+    
+    // PZ case
+    ambiguousFaceDir.rotX();
+    ambiguousFaceDir.rotX();
+    config.rotX();
+    config.rotX();
+    registerConfigAxisRotations(rotZ, config, ambiguousFaceDir, problematicConfigsMap);
+}
+
+//------------------------------------------------------------------------------
+void GenerateTablesApp::generateManifoldTable(ProblematicConfigsMap & problematicConfigsMap) {
+    problematicConfigsMap.clear();
+    // representatives of the two problematic casses.
+    // each representative has its ambiguous face in positive x direction.
+    // C16 from the original Nielsen paper
+    CubeConfiguration c16(
+        CubeConfiguration::C0 |
+        CubeConfiguration::C1 |
+        CubeConfiguration::C2 |
+        CubeConfiguration::C6 |
+        CubeConfiguration::C7
+    );
+    
+    // C19 from the original Nielsen paper
+    CubeConfiguration c19(
+        CubeConfiguration::C0 |
+        CubeConfiguration::C1 |
+        CubeConfiguration::C2 |
+        CubeConfiguration::C4 |
+        CubeConfiguration::C6 |
+        CubeConfiguration::C7
+    );
+    
+    // explore all rotations of both configurations and store them in the map
+    exploreConfigRotations(c16,problematicConfigsMap);
+    exploreConfigRotations(c19,problematicConfigsMap);
+}
+
+void GenerateTablesApp::writeManifoldTable(ProblematicConfigsMap const & problematicConfigsMap) {
+    // just write the table of problematic configs
+    char const * const filename = "manifolddualmctable.tpp";
+    std::ofstream file(filename);
+    
+    std::cout << "Writting manifold DualMC table to '" << filename << '\'' << std::endl;
+    
+    file << "template<class T>\nuint8_t const DualMC<T>::problematicConfigs[256] = {\n";
+    
+    for( int i=0; i < 256;++i) {
+        auto it = problematicConfigsMap.find(i);
+        if(it != problematicConfigsMap.end()) {
+            file << it->second;
+        } else {
+            // non-problematic configs have a direction value of 255
+            file << "255";
+        }
+        if(i != 255)
+            file << ',';
+        
+        if((i & 15) == 15)
+            file << '\n';
+    }
+    file << "};\n";
+    
+    file.close();
+}
+
+//------------------------------------------------------------------------------
+void GenerateTablesApp::run() {
+    // generate and write tables
     generateDualMCTable();
     writeDualMCTable();
-    return 0;
+
+    ProblematicConfigsMap problematicConfigs;
+    generateManifoldTable(problematicConfigs);
+    writeManifoldTable(problematicConfigs);
 }

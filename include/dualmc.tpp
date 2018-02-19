@@ -36,6 +36,48 @@ int DualMC<T>::getCellCode(int32_t const cx, int32_t const cy, int32_t const cz,
 template<class T> inline
 int DualMC<T>::getDualPointCode(int32_t const cx, int32_t const cy, int32_t const cz, VolumeDataType const iso, DMCEdgeCode const edge) const {
     int cubeCode = getCellCode(cx, cy, cz, iso);
+    
+    // is manifold dual marching cubes desired?
+    if(generateManifold) {
+        // The Manifold Dual Marching Cubes approach from Rephael Wenger as described in
+        // chapter 3.3.5 of his book "Isosurfaces: Geometry, Topology, and Algorithms"
+        // is implemente here.
+        // If a problematic C16 or C19 configuration shares the ambiguous face 
+        // with another C16 or C19 configuration we simply invert the cube code
+        // before looking up dual points. Doing this for these pairs ensures
+        // manifold meshes.
+        // But this removes the dualism to marching cubes.
+        
+        // check if we have a potentially problematic configuration
+        uint8_t const direction = problematicConfigs[uint8_t(cubeCode)];
+        // If the direction code is in {0,...,5} we have a C16 or C19 configuration.
+        if(direction != 255) {
+            // We have to check the neighboring cube, which shares the ambiguous
+            // face. For this we decode the direction. This could also be done
+            // with another lookup table.
+            // copy current cube coordinates into an array.
+            int32_t neighborCoords[] = {cx,cy,cz};
+            // get the dimension of the non-zero coordinate axis
+            unsigned int const component = direction >> 1;
+            // get the sign of the direction
+            int32_t delta = (direction & 1) == 1 ? 1 : -1;
+            // modify the correspong cube coordinate
+            neighborCoords[component] += delta;
+            // have we left the volume in this direction?
+            if(neighborCoords[component] >= 0 && neighborCoords[component] < (dims[component]-1)) {
+                // get the cube configuration of the relevant neighbor
+                int neighborCubeCode = getCellCode(neighborCoords[0], neighborCoords[1], neighborCoords[2], iso);
+                // Look up the neighbor configuration ambiguous face direction.
+                // If the direction is valid we have a C16 or C19 neighbor.
+                // As C16 and C19 have exactly one ambiguous face this face is
+                // guaranteed to be shared for the pair.
+                if(problematicConfigs[uint8_t(neighborCubeCode)] != 255) {
+                    // replace the cube configuration with its inverse.
+                    cubeCode ^= 0xff;
+                }
+            }
+        }
+    }
     for(int i = 0; i < 4; ++i)
         if(dualPointsList[cubeCode][i] & edge) {
             return dualPointsList[cubeCode][i];
@@ -181,16 +223,18 @@ void DualMC<T>::build(
     VolumeDataType const * data,
     int32_t const dimX, int32_t const dimY, int32_t const dimZ,
     VolumeDataType const iso,
+    bool const generateManifold,
     bool const generateSoup,
     std::vector<Vertex> & vertices,
     std::vector<Quad> & quads
     ) {
 
     // set members
-    this->dimX = dimX;
-    this->dimY = dimY;
-    this->dimZ = dimZ;
+    this->dims[0] = dimX;
+    this->dims[1] = dimY;
+    this->dims[2] = dimZ;
     this->data = data;
+    this->generateManifold = generateManifold;
     
     // clear vertices and quad indices
     vertices.clear();
@@ -213,9 +257,9 @@ void DualMC<T>::buildQuadSoup(
     std::vector<Quad> & quads
     ) {
     
-    int32_t const reducedX = dimX - 2;
-    int32_t const reducedY = dimY - 2;
-    int32_t const reducedZ = dimZ - 2;
+    int32_t const reducedX = dims[0] - 2;
+    int32_t const reducedY = dims[1] - 2;
+    int32_t const reducedZ = dims[2] - 2;
 
     Vertex vertex0;
     Vertex vertex1;
@@ -345,9 +389,9 @@ void DualMC<T>::buildSharedVerticesQuads(
     ) {
     
 
-    int32_t const reducedX = dimX - 2;
-    int32_t const reducedY = dimY - 2;
-    int32_t const reducedZ = dimZ - 2;
+    int32_t const reducedX = dims[0] - 2;
+    int32_t const reducedY = dims[1] - 2;
+    int32_t const reducedZ = dims[2] - 2;
 
     QuadIndexType i0,i1,i2,i3;
     

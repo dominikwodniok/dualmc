@@ -54,7 +54,7 @@ void DualMCExample::run(int const argc, char** argv) {
     }
     
     // compute ISO surface
-    computeSurface(options.isoValue,options.generateQuadSoup);
+    computeSurface(options.isoValue,options.generateQuadSoup,options.generateManifold);
     
     // write output file
     writeOBJ(options.outputFile);
@@ -71,6 +71,7 @@ bool DualMCExample::parseArgs(int const argc, char** argv, AppOptions & options)
     options.isoValue = 0.5f;
     options.generateCaffeine = false;
     options.generateQuadSoup = false;
+    options.generateManifold = false;
     options.outputFile.assign("surface.obj");
     
     // parse arguments
@@ -79,6 +80,8 @@ bool DualMCExample::parseArgs(int const argc, char** argv, AppOptions & options)
             options.generateQuadSoup = true;
         } else if(strcmp(argv[currentArg],"-caffeine") == 0) {
             options.generateCaffeine = true;
+        } else if(strcmp(argv[currentArg],"-manifold") == 0) {
+            options.generateManifold = true;
         } else if(strcmp(argv[currentArg],"-iso") == 0) {
             if(currentArg+1 == argc) {
                 std::cerr << "Iso value missing" << std::endl;
@@ -128,6 +131,7 @@ void DualMCExample::printArgs() const {
     std::cout << " -help              print this help" << std::endl;
     std::cout << " -raw FILE X Y Z    specify raw file with dimensions" << std::endl;
     std::cout << " -caffeine          generate built-in caffeine molecule" << std::endl;
+    std::cout << " -manifold          use Manifold Dual Marching Cubes algorithm (Rephael Wenger)" << std::endl;
     std::cout << " -iso X             specify iso value X in [0,1]. DEFAULT: 0.5" << std::endl;
     std::cout << " -out FILE          specify output file name. DEFAULT: surface.obj" << std::endl;
     std::cout << " -soup              generate a quad soup (no vertex sharing)" << std::endl;
@@ -141,7 +145,7 @@ void DualMCExample::printHelpHint() const {
 
 //------------------------------------------------------------------------------
 
-void DualMCExample::computeSurface(float const iso, bool const generateSoup) {
+void DualMCExample::computeSurface(float const iso, bool const generateSoup, bool const generateManifold) {
     std::cout << "Computing surface" << std::endl;
     
     // measure extraction time
@@ -150,10 +154,12 @@ void DualMCExample::computeSurface(float const iso, bool const generateSoup) {
     // construct iso surface
     if(volume.bitDepth == 8) {
         dualmc::DualMC<uint8_t> builder;
-        builder.build(&volume.data.front(), volume.dimX, volume.dimY, volume.dimZ, iso * std::numeric_limits<uint8_t>::max(), generateSoup, vertices, quads);
+        builder.build(&volume.data.front(), volume.dimX, volume.dimY, volume.dimZ,
+            iso * std::numeric_limits<uint8_t>::max(), generateManifold, generateSoup, vertices, quads);
     } else if(volume.bitDepth == 16) {
         dualmc::DualMC<uint16_t> builder;
-        builder.build((uint16_t const*)&volume.data.front(), volume.dimX, volume.dimY, volume.dimZ, iso * std::numeric_limits<uint16_t>::max(), generateSoup, vertices, quads);
+        builder.build((uint16_t const*)&volume.data.front(), volume.dimX, volume.dimY, volume.dimZ,
+            iso * std::numeric_limits<uint16_t>::max(), generateManifold, generateSoup, vertices, quads);
     } else {
         std::cerr << "Invalid volume bit depth" << std::endl;
         return;

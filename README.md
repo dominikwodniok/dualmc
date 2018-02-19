@@ -7,15 +7,21 @@ It is a byproduct of some work I did as a student assistent back in 2009.
 Though there are other implementations out there it might still be helpfull
 to someone.
 
+Unfortunately, under rare circumstances the original algorithm can create
+non-manifold meshes. See the remarks of the original paper on this problem.
+In chapter 3.3.5 of his book "Isosurfaces: Geometry, Topology, and Algorithms"
+Rephael Wenger proposed the *manifold* dual marching cubes algorithm as a
+possible solution, which is also included in this implementation.
+
 # Requirements
 * C++11
 * No other dependencies
 
 # Implementation
 The algorithm is implemented in the files `dualmc.h`, `dualmc.tpp`,
-and `dualmc_table.tpp`. A simple example command-line application which demonstrates
-basic usage is provided as well. An application for generating the dual marching
-cubes table is implemented in `gentable.cpp`.
+and `dualmc_tables.tpp`. A simple example command-line application which demonstrates
+basic usage is provided as well. An application for generating the (manifold)
+dual marching cubes tables is implemented in `apps/gentables`.
 
 Dual point computation could be improved using Hermite data or at least first
 derivatives as described in [Dual Contouring of Hermite Data](https://dl.acm.org/citation.cfm?id=566586).

@@ -36,6 +36,7 @@ private:
         float isoValue;
         bool generateCaffeine;
         bool generateQuadSoup;
+        bool generateManifold;
         std::string outputFile;
     };
 
@@ -50,7 +51,7 @@ private:
 
     /// Compute the iso surface for the specified iso value. Optionally generate
     /// a quad soup.
-    void computeSurface(float const iso, bool const generateSoup = false);
+    void computeSurface(float const iso, bool const generateSoup, bool const generateManifold);
     
     /// Write a Wavefront OBJ model for the extracted ISO surface.
     void writeOBJ(std::string const & fileName) const;

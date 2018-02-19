@@ -54,10 +54,15 @@ struct Quad {
 /// \class  DualMC
 /// \author Dominik Wodniok
 /// \date   2009
-/// Class which implements the dual marching cubes algorithm from ... .
+/// Class which implements the dual marching cubes algorithm from Gregory M. Nielson.
 /// Faces and vertices of the standard marching cubes algorithm correspond to
 /// vertices and faces in the dual algorithm. As a vertex in standard marching cubes
 /// usually is shared by 4 faces, the dual mesh is entirely made from quadrangles.
+/// Unfortunately, under rare circumstances the original algorithm can create
+/// non-manifold meshes. See the remarks of the original paper on this.
+/// The class optionally can guarantee manifold meshes by taking the Manifold
+/// Dual Marching Cubes approach from Rephael Wenger as described in
+/// chapter 3.3.5 of his book "Isosurfaces: Geometry, Topology, and Algorithms".
 template<class T> class DualMC {
 public:
     // typedefs
@@ -72,6 +77,7 @@ public:
         VolumeDataType const * data,
         int32_t const dimX, int32_t const dimY, int32_t const dimZ,
         VolumeDataType const iso,
+        bool const generateManifold,
         bool const generateSoup,
         std::vector<Vertex> & vertices,
         std::vector<Quad> & quads
@@ -121,6 +127,8 @@ private:
     /// Get the 12-bit dual point code mask, which encodes the traditional
     /// marching cube vertices of the traditional marching cubes face which
     /// corresponds to the dual point.
+    /// This is also where the manifold dual marching cubes algorithm is
+    /// implemented.
     int getDualPointCode(int32_t const cx, int32_t const cy, int32_t const cz,
       VolumeDataType const iso, DMCEdgeCode const edge) const;
 
@@ -139,23 +147,30 @@ private:
     int32_t gA(int32_t const x, int32_t const y, int32_t const z) const;
 
 private:
-    // private members
+    // static lookup tables needed for (manifold) dual marching cubes
 
     /// Dual Marching Cubes table
     /// Encodes the edge vertices for the 256 marching cubes cases.
     /// A marching cube case produces up to four faces and ,thus, up to four
     /// dual points.
-    static int32_t dualPointsList[256][4];
+    static int32_t const dualPointsList[256][4];
+    
+    /// Table which encodes the ambiguous face of cube configurations, which
+    /// can cause non-manifold meshes.
+    /// Needed for manifold dual marching cubes.
+    static uint8_t const problematicConfigs[256];
+    
+private:
 
-    /// convenience volume extent in x dimension
-    int32_t dimX;
-    /// convenience volume extent in y dimension
-    int32_t dimY;
-    /// convenience volume extent in z dimension
-    int32_t dimZ;
+    /// convenience volume extent array for x-,y-, and z-dimension
+    int32_t dims[3];
 
     /// convenience volume data point
     VolumeDataType const * data;
+    
+    /// store whether the manifold dual marching cubes algorithm should be
+    /// applied.
+    bool generateManifold;
     
     /// Dual point key structure for hashing of shared vertices
     struct DualPointKey {
@@ -218,7 +233,7 @@ Quad::Quad(
 
 template<class T> inline
 int32_t DualMC<T>::gA(int32_t const x, int32_t const y, int32_t const z) const {
-    return x + dimX * (y + dimY * z);
+    return x + dims[0] * (y + dims[1] * z);
 }
 
 //------------------------------------------------------------------------------
@@ -229,7 +244,7 @@ bool DualMC<T>::DualPointKey::operator==(DualMC::DualPointKey const & other) con
 
 #include "dualmc.tpp"
 
-#include "dualmc_table.tpp"
+#include "dualmc_tables.tpp"
 
 } // END: namespace dualmc
 #endif // DUALMC_H_INCLUDED
