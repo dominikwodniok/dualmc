@@ -3,16 +3,14 @@
 // of the BSD 3-Clause license.
 // See the LICENSE.txt file for details.
 
+#include "gentables.h"
+
 // std includes
 #include <array>
 #include <cassert>
 #include <fstream>
 #include <functional>
 #include <iostream>
-#include <map>
-#include <vector>
-
-#include "gentables.h"
 
 //  Coordinate system
 //
@@ -100,7 +98,7 @@ uint32_t const GenerateTablesApp::cornerEdges[8][3] = {
 //  0------------1
 // Luckily, the correct patches are identical to the results of the inverted
 // configurations, which are handled correctly.
-void GenerateTablesApp::generateDualMCTable() {
+void GenerateTablesApp::generateDualMCTable(std::vector<uint32_t> & dualPointsList) {
     std::cout << "Generating DualMC table" << std::endl;
 
     // allocate space for the up to four dual point edge masks for all 256
@@ -203,7 +201,7 @@ void GenerateTablesApp::generateDualMCTable() {
 //------------------------------------------------------------------------------
 
 // function writing the dual marching cubes table file
-void GenerateTablesApp::writeDualMCTable() {    
+void GenerateTablesApp::writeDualMCTable(std::vector<uint32_t> const & dualPointsList) {    
     // now write the table to a file
     char const * const filename = "dualmctable.tpp";
     std::ofstream file(filename);
@@ -410,6 +408,7 @@ void GenerateTablesApp::generateManifoldTable(ProblematicConfigsMap & problemati
     exploreConfigRotations(c19,problematicConfigsMap);
 }
 
+//------------------------------------------------------------------------------
 void GenerateTablesApp::writeManifoldTable(ProblematicConfigsMap const & problematicConfigsMap) {
     // just write the table of problematic configs
     char const * const filename = "manifolddualmctable.tpp";
@@ -441,8 +440,9 @@ void GenerateTablesApp::writeManifoldTable(ProblematicConfigsMap const & problem
 //------------------------------------------------------------------------------
 void GenerateTablesApp::run() {
     // generate and write tables
-    generateDualMCTable();
-    writeDualMCTable();
+    std::vector<uint32_t> dualPointsList;
+    generateDualMCTable(dualPointsList);
+    writeDualMCTable(dualPointsList);
 
     ProblematicConfigsMap problematicConfigs;
     generateManifoldTable(problematicConfigs);
