@@ -238,7 +238,7 @@ int32_t DualMC<T>::gA(int32_t const x, int32_t const y, int32_t const z) const {
 
 //------------------------------------------------------------------------------
 template<class T> inline
-bool DualMC<T>::DualPointKey::operator==(DualMC::DualPointKey const & other) const {
+bool DualMC<T>::DualPointKey::operator==(typename DualMC<T>::DualPointKey const & other) const {
     return linearizedCellID == other.linearizedCellID && pointCode == other.pointCode;
 }
 

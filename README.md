@@ -33,8 +33,9 @@ To build the example and see the available options in a Linux environment type:
     $ make
     $ ./dmc -help
 
-For Windows or OS X the adept programmer should have no problems setting up
-a small project.
+A basic CMAKE file is provided as well.
+If this still does not suit you under Windows or OS X the adept programmer should have no problems
+setting up a small project.
 
 ## RAW Files
 The example application can only read 8-bit and 16-bit volume data sets in the
