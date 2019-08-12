@@ -51,6 +51,8 @@ using std::chrono::high_resolution_clock;
 using std::chrono::duration;
 using std::chrono::duration_cast;
 
+bool debug = true;
+
 //------------------------------------------------------------------------------
 
 void DualMCExample::run(int const argc, char** argv) {
@@ -79,9 +81,13 @@ void DualMCExample::run(int const argc, char** argv) {
     }
     
     // compute ISO surface
+    if(debug)
+        std::cout << "Computing iso-surface." << std::endl;
     computeSurface(options.isoValue,options.generateQuadSoup,options.generateManifold);
     
     // write output file
+    if(debug)
+        std::cout << "Writing output file." << std::endl;
     writeOBJ(options.outputFile);
 }
 
@@ -335,11 +341,22 @@ bool DualMCExample::loadTensor(std::string const & fileName) {
             //float const nY = float(y) * invDimY;
             for(int32_t x = 0; x < volume.dimX; ++x, ++p) {
                 file >> rho;
+		if(rho < minValue || rho > maxValue)
+			std::cerr << "Value numbered " << p << " in the tensor is outside the range: " << rho << std::endl;
 		rho = scale*(rho - minValue);
                 data16Bit[p] = rho * std::numeric_limits<uint16_t>::max();
             }
         }
     }
+
+    if(debug)
+    	std::cout << "Number of values in the tensor is: " << p << std::endl;
+
+    if(!file) {
+        std::cerr << "Error while reading file" << std::endl;
+        return false;
+    } else
+	file.close();
 
     return true;
 }
