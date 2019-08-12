@@ -7,6 +7,26 @@
 /// \author Dominik Wodniok
 /// \date   2009
 
+/*
+
+Modified by Adrian Bowyer to add loading of simple 3D tensor files of floats.
+
+Dr Adrian Bowyer
+RepRap Ltd
+https://reprapltd.com
+contact@reprapltd.com
+
+12 August 2019
+
+The tensor file format is a list of floats separated by spaces:
+
+xDimension yDimension zDimension minValue maxValue { (xDimension*yDimension*zDimension) function values } EoF
+
+The first three numbers are the size of the tensor.  The second two are the maximum and minimum values of all the
+numbers in the tensor, then there is a list of the values incrementing x fastest, then y, then z.
+
+*/
+
 // C libs
 #include <cmath>
 #include <cstdlib>
@@ -44,7 +64,12 @@ void DualMCExample::run(int const argc, char** argv) {
     if(options.generateCaffeine) {
         generateCaffeine();
     } else if(!options.inputFile.empty()) {
-        if(!loadRawFile(options.inputFile, options.dimX, options.dimY, options.dimZ)) {
+        if(options.readTensor)
+	{
+	  if(!loadTensor(options.inputFile)) {
+            return;
+          }
+        } else if(!loadRawFile(options.inputFile, options.dimX, options.dimY, options.dimZ)) {
             return;
         }
     } else {
@@ -72,6 +97,7 @@ bool DualMCExample::parseArgs(int const argc, char** argv, AppOptions & options)
     options.generateCaffeine = false;
     options.generateQuadSoup = false;
     options.generateManifold = false;
+    options.readTensor = false;
     options.outputFile.assign("surface.obj");
     
     // parse arguments
@@ -112,6 +138,14 @@ bool DualMCExample::parseArgs(int const argc, char** argv, AppOptions & options)
             options.dimY = atoi(argv[currentArg+3]);
             options.dimZ = atoi(argv[currentArg+4]);
             currentArg += 4;
+        }else if(strcmp(argv[currentArg],"-tensor") == 0) {
+            if(currentArg+1 >= argc) {
+                std::cerr << "Not enough arguments for tensor file" << std::endl;
+                return false;
+            }
+            options.inputFile.assign(argv[currentArg+1]);
+            currentArg += 1;
+	    options.readTensor = true;
         } else if(strcmp(argv[currentArg],"-help") == 0) {
             printArgs();
             return false;
@@ -130,6 +164,7 @@ void DualMCExample::printArgs() const {
     std::cout << "Usage: dmc ARGS" << std::endl;
     std::cout << " -help              print this help" << std::endl;
     std::cout << " -raw FILE X Y Z    specify raw file with dimensions" << std::endl;
+    std::cout << " -tensor FILE       specify tensor file" << std::endl;
     std::cout << " -caffeine          generate built-in caffeine molecule" << std::endl;
     std::cout << " -manifold          use Manifold Dual Marching Cubes algorithm (Rephael Wenger)" << std::endl;
     std::cout << " -iso X             specify iso value X in [0,1]. DEFAULT: 0.5" << std::endl;
@@ -262,6 +297,53 @@ void DualMCExample::generateCaffeine() {
         }
     }
 }
+
+// Load a 3D tensor of float values and convert them to 16 bit densities.
+ 
+bool DualMCExample::loadTensor(std::string const & fileName) {
+    std::cout << "Loading tensor file " << fileName << std::endl;
+
+    std::ifstream file(fileName, std::ifstream::in);
+    if(!file) {
+        std::cerr << "Unable to open file '" << fileName << "'" << std::endl;
+        return false;
+    }
+    
+    // initialize volume dimensions and memory
+    file >> volume.dimX;
+    file >> volume.dimY;
+    file >> volume.dimZ;
+    size_t const numDataPoints = volume.dimX * volume.dimY * volume.dimZ;
+    volume.data.resize(numDataPoints*2);
+    volume.bitDepth = 16;
+
+    float minValue, maxValue, scale;
+    file >> minValue;
+    file >> maxValue;
+    scale = 1.0/(maxValue - minValue);
+
+    uint16_t * data16Bit = (uint16_t*)&volume.data.front();
+    
+    // volume write position
+    int32_t p = 0;
+    float rho;
+    // iterate all voxels
+    // compute canoncical [0,1]^3 volume coordinates for density evaluation
+    for(int32_t z = 0; z < volume.dimZ; ++z) {
+        //float const nZ = float(z) * invDimZ;
+        for(int32_t y = 0; y < volume.dimY; ++y) {
+            //float const nY = float(y) * invDimY;
+            for(int32_t x = 0; x < volume.dimX; ++x, ++p) {
+                file >> rho;
+		rho = scale*(rho - minValue);
+                data16Bit[p] = rho * std::numeric_limits<uint16_t>::max();
+            }
+        }
+    }
+
+    return true;
+}
+
 
 //------------------------------------------------------------------------------
 

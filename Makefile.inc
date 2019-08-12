@@ -1,7 +1,7 @@
 # shared compiler settings and rules
 CXX ?= g++
 CXXWARNINGS ?= -Wall -Wextra -Wundef -pedantic
-CXXFLAGS ?= ${CXXWARNINGS} -g -O3
+CXXFLAGS ?= -std=gnu++11 ${CXXWARNINGS} -g -O3
 
 COMPILE = ${CXX} ${CXXFLAGS} ${CPPFLAGS} -c
 LINK = ${CXX} ${LDFLAGS}
