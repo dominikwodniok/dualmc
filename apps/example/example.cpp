@@ -41,6 +41,8 @@ numbers in the tensor, then there is a list of the values incrementing x fastest
 // stl
 #include <vector>
 
+#include<algorithm>
+
 // dual mc builder
 #include "dualmc.h"
 
@@ -84,11 +86,20 @@ void DualMCExample::run(int const argc, char** argv) {
     if(debug)
         std::cout << "Computing iso-surface." << std::endl;
     computeSurface(options.isoValue,options.generateQuadSoup,options.generateManifold);
+
+    std::string extn = options.outputFile.substr(options.outputFile.size()-4,options.outputFile.size()-1);
+    std::transform(extn.begin(), extn.end(), extn.begin(), ::tolower);
     
     // write output file
     if(debug)
         std::cout << "Writing output file." << std::endl;
-    writeOBJ(options.outputFile);
+
+    if(extn.compare(".obj") == 0)
+    	writeOBJ(options.outputFile);
+    else if(extn.compare(".stl") == 0)
+	writeSTL(options.outputFile);
+    else
+	std::cerr << "Output file is neither .obj nor .stl: " << options.outputFile << std::endl;
 }
 
 //------------------------------------------------------------------------------
@@ -422,7 +433,7 @@ bool DualMCExample::loadRawFile(std::string const & fileName, int32_t dimX, int3
 //------------------------------------------------------------------------------
 
 void DualMCExample::writeOBJ(std::string const & fileName) const {
-    std::cout << "Writing OBJ file" << std::endl;
+    std::cout << "Writing OBJ file " << fileName << std::endl;
     // check if we actually have an ISO surface
     if(vertices.size () == 0 || quads.size() == 0) {
         std::cout << "No ISO surface generated. Skipping OBJ generation." << std::endl;
@@ -448,6 +459,71 @@ void DualMCExample::writeOBJ(std::string const & fileName) const {
     for(auto const & q : quads) {
         file << "f " << (q.i0+1) << ' ' << (q.i1+1) << ' ' << (q.i2+1) << ' ' << (q.i3+1) << '\n';
     }
+    
+    file.close();
+}
+
+// Calculate the normal vector of a triangle of vertices.  The result isn't normalised.
+void DualMCExample::triangleNormal(int v0, int v1, int v2, double &xn, double &yn, double &zn) const
+{
+	double x1 = vertices[v1].x - vertices[v0].x;
+	double x2 = vertices[v2].x - vertices[v0].x;
+	double y1 = vertices[v1].y - vertices[v0].y;
+	double y2 = vertices[v2].y - vertices[v0].y;
+	double z1 = vertices[v1].z - vertices[v0].z;
+	double z2 = vertices[v2].z - vertices[v0].z;
+
+	xn = y1*z2 - z1*y2;
+	yn = z1*x2 - x1*z2;
+	zn = y1*x2 - x1*y2;
+}
+
+// Write the quads out as pairs of triangles in an ASCII STL file
+void DualMCExample::writeSTL(std::string const & fileName) const {
+    std::cout << "Writing STL file " << fileName << std::endl;
+    // check if we actually have an ISO surface
+    if(vertices.size () == 0 || quads.size() == 0) {
+        std::cout << "No ISO surface generated. Skipping STL generation." << std::endl;
+        return;
+    }
+    
+    // open output file
+    std::ofstream file(fileName);
+    if(!file) {
+        std::cout << "Error opening output file" << std::endl;
+        return;
+    }
+    
+    std::cout << "Generating STL triangulation with " << vertices.size() << " vertices and "
+      << 2*quads.size() << " triangles" << std::endl;
+
+    file << "solid " << std::endl;
+    
+    double xn, yn, zn;
+
+    // write quads as triangle pairs
+    for(auto const & q : quads) 
+    {
+        triangleNormal(q.i0, q.i1, q.i2, xn, yn, zn);
+        file << "facet normal " << xn << ' ' << yn << ' ' << zn << std::endl;
+        file << " outer loop" << std::endl;
+        file << "  vertex " << vertices[q.i0].x << ' ' << vertices[q.i0].y << ' ' << vertices[q.i0].z << std::endl;
+        file << "  vertex " << vertices[q.i1].x << ' ' << vertices[q.i1].y << ' ' << vertices[q.i1].z << std::endl;
+        file << "  vertex " << vertices[q.i2].x << ' ' << vertices[q.i2].y << ' ' << vertices[q.i2].z << std::endl;
+        file << " endloop" << std::endl;
+        file << "endfacet" << std::endl;
+
+	triangleNormal(q.i0, q.i2, q.i3, xn, yn, zn);
+        file << "facet normal " << xn << ' ' << yn << ' ' << zn << std::endl;
+        file << " outer loop" << std::endl;
+        file << "  vertex " << vertices[q.i0].x << ' ' << vertices[q.i0].y << ' ' << vertices[q.i0].z << std::endl;
+        file << "  vertex " << vertices[q.i2].x << ' ' << vertices[q.i2].y << ' ' << vertices[q.i2].z << std::endl;
+        file << "  vertex " << vertices[q.i3].x << ' ' << vertices[q.i3].y << ' ' << vertices[q.i3].z << std::endl;
+        file << " endloop" << std::endl;
+        file << "endfacet" << std::endl;
+    }
+
+    file << "endsolid " << std::endl;
     
     file.close();
 }

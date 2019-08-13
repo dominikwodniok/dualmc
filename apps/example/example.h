@@ -59,6 +59,12 @@ private:
     
     /// Write a Wavefront OBJ model for the extracted ISO surface.
     void writeOBJ(std::string const & fileName) const;
+
+    // Compute triangle normal from its vertices (needed by STL files)
+    void triangleNormal(int v0, int v1, int v2, double &xn, double &yn, double &zn) const;
+
+    // Write ASCII STL file
+    void writeSTL(std::string const & fileName) const; 
     
     /// Print program arguments.
     void printArgs() const;
