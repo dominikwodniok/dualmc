@@ -9,7 +9,10 @@
 
 /*
 
-Modified by Adrian Bowyer to add loading of simple 3D tensor files of floats.
+Modified by Adrian Bowyer to add loading of simple 3D tensor files of floats and to output ASCII STL files
+in addition to the original Wavefront OBJ files.
+
+TODO: Output binary STL as well.
 
 Dr Adrian Bowyer
 RepRap Ltd
@@ -18,12 +21,16 @@ contact@reprapltd.com
 
 12 August 2019
 
-The tensor file format is a list of floats separated by spaces:
+The tensor file format is a list of three integers then floats all separated by spaces:
 
 xDimension yDimension zDimension minValue maxValue { (xDimension*yDimension*zDimension) function values } EoF
 
-The first three numbers are the size of the tensor.  The second two are the maximum and minimum values of all the
-numbers in the tensor, then there is a list of the values incrementing x fastest, then y, then z.
+The first three integers are the size of the tensor.  The second two floats are the maximum and minimum values of all the
+numbers in the tensor, then there is a list of the float values incrementing x fastest, then y, then z.
+
+Example command line:
+
+$ ./dmc -tensor data/testCylinder.tns -iso 0.5 -out data/testCylinder.stl
 
 */
 
@@ -185,7 +192,7 @@ void DualMCExample::printArgs() const {
     std::cout << " -caffeine          generate built-in caffeine molecule" << std::endl;
     std::cout << " -manifold          use Manifold Dual Marching Cubes algorithm (Rephael Wenger)" << std::endl;
     std::cout << " -iso X             specify iso value X in [0,1]. DEFAULT: 0.5" << std::endl;
-    std::cout << " -out FILE          specify output file name. DEFAULT: surface.obj" << std::endl;
+    std::cout << " -out FILE          specify output file name. Extension (.obj or .stl) determines file type. DEFAULT: surface.obj" << std::endl;
     std::cout << " -soup              generate a quad soup (no vertex sharing)" << std::endl;
 }
 
@@ -221,7 +228,7 @@ void DualMCExample::computeSurface(float const iso, bool const generateSoup, boo
     duration<double> const diffTime = duration_cast<duration<double>>(endTime - startTime);
     double const extractionTime = diffTime.count();
     
-    std::cout << "Extraction time: " << extractionTime << "s" << std::endl;
+    std::cout << "Extraction time: " << 1000*extractionTime << "ms" << std::endl;
 }
 
 //------------------------------------------------------------------------------
@@ -344,8 +351,7 @@ bool DualMCExample::loadTensor(std::string const & fileName) {
     // volume write position
     int32_t p = 0;
     float rho;
-    // iterate all voxels
-    // compute canoncical [0,1]^3 volume coordinates for density evaluation
+
     for(int32_t z = 0; z < volume.dimZ; ++z) {
         //float const nZ = float(z) * invDimZ;
         for(int32_t y = 0; y < volume.dimY; ++y) {
@@ -462,6 +468,8 @@ void DualMCExample::writeOBJ(std::string const & fileName) const {
     
     file.close();
 }
+
+//------------------------------------------------------------------------------
 
 // Calculate the normal vector of a triangle of vertices.  The result isn't normalised.
 void DualMCExample::triangleNormal(int v0, int v1, int v2, double &xn, double &yn, double &zn) const

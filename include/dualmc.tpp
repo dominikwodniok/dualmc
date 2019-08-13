@@ -450,7 +450,8 @@ void DualMC<T>::buildSharedVerticesQuads(
                         i2 = getSharedDualPointIndex(x-1,y-1,z,iso,EDGE5,vertices);
                         i3 = getSharedDualPointIndex(x,y-1,z,iso,EDGE7,vertices);
                         
-                        if(exiting) {
+                        //if(exiting) { ///**** This was a bug, I think - AB.
+			if(entering) {
                             quads.emplace_back(i0,i1,i2,i3);
                         } else {
                             quads.emplace_back(i0,i3,i2,i1);
