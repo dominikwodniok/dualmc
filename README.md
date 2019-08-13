@@ -71,7 +71,7 @@ the grid defining the iso-surface, and to allow ASCII STL files to be written as
 
 The tensor file format (.tns , though that extension is not compulsory) is a list of three integers then many floats all separated by spaces:
 
-xDimension yDimension zDimension minValue maxValue { (xDimension*yDimension*zDimension) function values } EoF
+xDimension yDimension zDimension minValue maxValue { (xDimension &ast; yDimension &ast; zDimension) function values } EoF
 
 The first three integers are the size of the tensor.  The second two floats are the maximum and minimum values of all the numbers in the tensor, then there is a list of the float values incrementing x fastest, then y, then z.
 
