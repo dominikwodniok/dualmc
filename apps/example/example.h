@@ -37,6 +37,7 @@ private:
         bool generateCaffeine;
         bool generateQuadSoup;
         bool generateManifold;
+        bool readTensor;
         std::string outputFile;
     };
 
@@ -45,6 +46,9 @@ private:
 
     /// Generate an example volume for the dual mc builder.
     void generateCaffeine();
+
+    /// Load a tensor of values on a regular grid
+    bool loadTensor(std::string const & fileName);
     
     /// Load volume from raw file.
     bool loadRawFile(std::string const & fileName, int32_t dimX, int32_t dimY, int32_t dimZ);
@@ -55,6 +59,12 @@ private:
     
     /// Write a Wavefront OBJ model for the extracted ISO surface.
     void writeOBJ(std::string const & fileName) const;
+
+    // Compute triangle normal from its vertices (needed by STL files)
+    void triangleNormal(int v0, int v1, int v2, double &xn, double &yn, double &zn) const;
+
+    // Write ASCII STL file
+    void writeSTL(std::string const & fileName) const; 
     
     /// Print program arguments.
     void printArgs() const;

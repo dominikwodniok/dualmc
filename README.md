@@ -66,5 +66,18 @@ For code simplicity the example outputs surfaces in the
 [Wavefront OBJ](http://www.fileformat.info/format/wavefrontobj/egff.htm)
 format.
 
+This has been extended by RepRap Ltd (https://reprapltd.com) to allow tensors of floats to be read in as 
+the grid defining the iso-surface, and to allow ASCII STL files to be written as well.
+
+The tensor file format (.tns , though that extension is not compulsory) is a list of three integers then many floats all separated by spaces:
+
+xDimension yDimension zDimension minValue maxValue { (xDimension &ast; yDimension &ast; zDimension) function values } EoF
+
+The first three integers are the size of the tensor.  The second two floats are the maximum and minimum values of all the numbers in the tensor, then there is a list of the float values incrementing x fastest, then y, then z.
+
+Example command line to read such data and output an STL file.:
+
+$ ./dmc -tensor data/testCylinder.tns -iso 0.5 -out data/testCylinder.stl
+
 # License
 [BSD 3-Clause License](LICENSE)

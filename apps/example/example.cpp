@@ -7,6 +7,33 @@
 /// \author Dominik Wodniok
 /// \date   2009
 
+/*
+
+Modified by Adrian Bowyer to add loading of simple 3D tensor files of floats and to output ASCII STL files
+in addition to the original Wavefront OBJ files.
+
+TODO: Output binary STL as well.
+
+Dr Adrian Bowyer
+RepRap Ltd
+https://reprapltd.com
+contact@reprapltd.com
+
+12 August 2019
+
+The tensor file format is a list of three integers then floats all separated by spaces:
+
+xDimension yDimension zDimension minValue maxValue { (xDimension*yDimension*zDimension) function values } EoF
+
+The first three integers are the size of the tensor.  The second two floats are the maximum and minimum values of all the
+numbers in the tensor, then there is a list of the float values incrementing x fastest, then y, then z.
+
+Example command line:
+
+$ ./dmc -tensor data/testCylinder.tns -iso 0.5 -out data/testCylinder.stl
+
+*/
+
 // C libs
 #include <cmath>
 #include <cstdlib>
@@ -21,6 +48,8 @@
 // stl
 #include <vector>
 
+#include<algorithm>
+
 // dual mc builder
 #include "dualmc.h"
 
@@ -30,6 +59,8 @@
 using std::chrono::high_resolution_clock;
 using std::chrono::duration;
 using std::chrono::duration_cast;
+
+bool debug = true;
 
 //------------------------------------------------------------------------------
 
@@ -44,7 +75,12 @@ void DualMCExample::run(int const argc, char** argv) {
     if(options.generateCaffeine) {
         generateCaffeine();
     } else if(!options.inputFile.empty()) {
-        if(!loadRawFile(options.inputFile, options.dimX, options.dimY, options.dimZ)) {
+        if(options.readTensor)
+	{
+	  if(!loadTensor(options.inputFile)) {
+            return;
+          }
+        } else if(!loadRawFile(options.inputFile, options.dimX, options.dimY, options.dimZ)) {
             return;
         }
     } else {
@@ -54,10 +90,23 @@ void DualMCExample::run(int const argc, char** argv) {
     }
     
     // compute ISO surface
+    if(debug)
+        std::cout << "Computing iso-surface." << std::endl;
     computeSurface(options.isoValue,options.generateQuadSoup,options.generateManifold);
+
+    std::string extn = options.outputFile.substr(options.outputFile.size()-4,options.outputFile.size()-1);
+    std::transform(extn.begin(), extn.end(), extn.begin(), ::tolower);
     
     // write output file
-    writeOBJ(options.outputFile);
+    if(debug)
+        std::cout << "Writing output file." << std::endl;
+
+    if(extn.compare(".obj") == 0)
+    	writeOBJ(options.outputFile);
+    else if(extn.compare(".stl") == 0)
+	writeSTL(options.outputFile);
+    else
+	std::cerr << "Output file is neither .obj nor .stl: " << options.outputFile << std::endl;
 }
 
 //------------------------------------------------------------------------------
@@ -72,6 +121,7 @@ bool DualMCExample::parseArgs(int const argc, char** argv, AppOptions & options)
     options.generateCaffeine = false;
     options.generateQuadSoup = false;
     options.generateManifold = false;
+    options.readTensor = false;
     options.outputFile.assign("surface.obj");
     
     // parse arguments
@@ -112,6 +162,14 @@ bool DualMCExample::parseArgs(int const argc, char** argv, AppOptions & options)
             options.dimY = atoi(argv[currentArg+3]);
             options.dimZ = atoi(argv[currentArg+4]);
             currentArg += 4;
+        }else if(strcmp(argv[currentArg],"-tensor") == 0) {
+            if(currentArg+1 >= argc) {
+                std::cerr << "Not enough arguments for tensor file" << std::endl;
+                return false;
+            }
+            options.inputFile.assign(argv[currentArg+1]);
+            currentArg += 1;
+	    options.readTensor = true;
         } else if(strcmp(argv[currentArg],"-help") == 0) {
             printArgs();
             return false;
@@ -130,10 +188,11 @@ void DualMCExample::printArgs() const {
     std::cout << "Usage: dmc ARGS" << std::endl;
     std::cout << " -help              print this help" << std::endl;
     std::cout << " -raw FILE X Y Z    specify raw file with dimensions" << std::endl;
+    std::cout << " -tensor FILE       specify tensor file" << std::endl;
     std::cout << " -caffeine          generate built-in caffeine molecule" << std::endl;
     std::cout << " -manifold          use Manifold Dual Marching Cubes algorithm (Rephael Wenger)" << std::endl;
     std::cout << " -iso X             specify iso value X in [0,1]. DEFAULT: 0.5" << std::endl;
-    std::cout << " -out FILE          specify output file name. DEFAULT: surface.obj" << std::endl;
+    std::cout << " -out FILE          specify output file name. Extension (.obj or .stl) determines file type. DEFAULT: surface.obj" << std::endl;
     std::cout << " -soup              generate a quad soup (no vertex sharing)" << std::endl;
 }
 
@@ -169,7 +228,7 @@ void DualMCExample::computeSurface(float const iso, bool const generateSoup, boo
     duration<double> const diffTime = duration_cast<duration<double>>(endTime - startTime);
     double const extractionTime = diffTime.count();
     
-    std::cout << "Extraction time: " << extractionTime << "s" << std::endl;
+    std::cout << "Extraction time: " << 1000*extractionTime << "ms" << std::endl;
 }
 
 //------------------------------------------------------------------------------
@@ -263,6 +322,63 @@ void DualMCExample::generateCaffeine() {
     }
 }
 
+// Load a 3D tensor of float values and convert them to 16 bit densities.
+ 
+bool DualMCExample::loadTensor(std::string const & fileName) {
+    std::cout << "Loading tensor file " << fileName << std::endl;
+
+    std::ifstream file(fileName, std::ifstream::in);
+    if(!file) {
+        std::cerr << "Unable to open file '" << fileName << "'" << std::endl;
+        return false;
+    }
+    
+    // initialize volume dimensions and memory
+    file >> volume.dimX;
+    file >> volume.dimY;
+    file >> volume.dimZ;
+    size_t const numDataPoints = volume.dimX * volume.dimY * volume.dimZ;
+    volume.data.resize(numDataPoints*2);
+    volume.bitDepth = 16;
+
+    float minValue, maxValue, scale;
+    file >> minValue;
+    file >> maxValue;
+    scale = 1.0/(maxValue - minValue);
+
+    uint16_t * data16Bit = (uint16_t*)&volume.data.front();
+    
+    // volume write position
+    int32_t p = 0;
+    float rho;
+
+    for(int32_t z = 0; z < volume.dimZ; ++z) {
+        //float const nZ = float(z) * invDimZ;
+        for(int32_t y = 0; y < volume.dimY; ++y) {
+            //float const nY = float(y) * invDimY;
+            for(int32_t x = 0; x < volume.dimX; ++x, ++p) {
+                file >> rho;
+		if(rho < minValue || rho > maxValue)
+			std::cerr << "Value numbered " << p << " in the tensor is outside the range: " << rho << std::endl;
+		rho = scale*(rho - minValue);
+                data16Bit[p] = rho * std::numeric_limits<uint16_t>::max();
+            }
+        }
+    }
+
+    if(debug)
+    	std::cout << "Number of values in the tensor is: " << p << std::endl;
+
+    if(!file) {
+        std::cerr << "Error while reading file" << std::endl;
+        return false;
+    } else
+	file.close();
+
+    return true;
+}
+
+
 //------------------------------------------------------------------------------
 
 bool DualMCExample::loadRawFile(std::string const & fileName, int32_t dimX, int32_t dimY, int32_t dimZ) {
@@ -323,7 +439,7 @@ bool DualMCExample::loadRawFile(std::string const & fileName, int32_t dimX, int3
 //------------------------------------------------------------------------------
 
 void DualMCExample::writeOBJ(std::string const & fileName) const {
-    std::cout << "Writing OBJ file" << std::endl;
+    std::cout << "Writing OBJ file " << fileName << std::endl;
     // check if we actually have an ISO surface
     if(vertices.size () == 0 || quads.size() == 0) {
         std::cout << "No ISO surface generated. Skipping OBJ generation." << std::endl;
@@ -349,6 +465,73 @@ void DualMCExample::writeOBJ(std::string const & fileName) const {
     for(auto const & q : quads) {
         file << "f " << (q.i0+1) << ' ' << (q.i1+1) << ' ' << (q.i2+1) << ' ' << (q.i3+1) << '\n';
     }
+    
+    file.close();
+}
+
+//------------------------------------------------------------------------------
+
+// Calculate the normal vector of a triangle of vertices.  The result isn't normalised.
+void DualMCExample::triangleNormal(int v0, int v1, int v2, double &xn, double &yn, double &zn) const
+{
+	double x1 = vertices[v1].x - vertices[v0].x;
+	double x2 = vertices[v2].x - vertices[v0].x;
+	double y1 = vertices[v1].y - vertices[v0].y;
+	double y2 = vertices[v2].y - vertices[v0].y;
+	double z1 = vertices[v1].z - vertices[v0].z;
+	double z2 = vertices[v2].z - vertices[v0].z;
+
+	xn = y1*z2 - z1*y2;
+	yn = z1*x2 - x1*z2;
+	zn = y1*x2 - x1*y2;
+}
+
+// Write the quads out as pairs of triangles in an ASCII STL file
+void DualMCExample::writeSTL(std::string const & fileName) const {
+    std::cout << "Writing STL file " << fileName << std::endl;
+    // check if we actually have an ISO surface
+    if(vertices.size () == 0 || quads.size() == 0) {
+        std::cout << "No ISO surface generated. Skipping STL generation." << std::endl;
+        return;
+    }
+    
+    // open output file
+    std::ofstream file(fileName);
+    if(!file) {
+        std::cout << "Error opening output file" << std::endl;
+        return;
+    }
+    
+    std::cout << "Generating STL triangulation with " << vertices.size() << " vertices and "
+      << 2*quads.size() << " triangles" << std::endl;
+
+    file << "solid " << std::endl;
+    
+    double xn, yn, zn;
+
+    // write quads as triangle pairs
+    for(auto const & q : quads) 
+    {
+        triangleNormal(q.i0, q.i1, q.i2, xn, yn, zn);
+        file << "facet normal " << xn << ' ' << yn << ' ' << zn << std::endl;
+        file << " outer loop" << std::endl;
+        file << "  vertex " << vertices[q.i0].x << ' ' << vertices[q.i0].y << ' ' << vertices[q.i0].z << std::endl;
+        file << "  vertex " << vertices[q.i1].x << ' ' << vertices[q.i1].y << ' ' << vertices[q.i1].z << std::endl;
+        file << "  vertex " << vertices[q.i2].x << ' ' << vertices[q.i2].y << ' ' << vertices[q.i2].z << std::endl;
+        file << " endloop" << std::endl;
+        file << "endfacet" << std::endl;
+
+	triangleNormal(q.i0, q.i2, q.i3, xn, yn, zn);
+        file << "facet normal " << xn << ' ' << yn << ' ' << zn << std::endl;
+        file << " outer loop" << std::endl;
+        file << "  vertex " << vertices[q.i0].x << ' ' << vertices[q.i0].y << ' ' << vertices[q.i0].z << std::endl;
+        file << "  vertex " << vertices[q.i2].x << ' ' << vertices[q.i2].y << ' ' << vertices[q.i2].z << std::endl;
+        file << "  vertex " << vertices[q.i3].x << ' ' << vertices[q.i3].y << ' ' << vertices[q.i3].z << std::endl;
+        file << " endloop" << std::endl;
+        file << "endfacet" << std::endl;
+    }
+
+    file << "endsolid " << std::endl;
     
     file.close();
 }
